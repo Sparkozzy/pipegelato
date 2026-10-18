@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+*.exe
+.env
+.git
+.gitignore
+resposta.mp3
