@@ -122,9 +122,15 @@ async def websocket_endpoint(websocket: WebSocket):
         data = json.loads(message_text)
         event = data.get("event")
         if event == "start":
-            stream_sid = data["start"]["streamSid"]
-            call_sid = data["start"].get("callSid")
-            print(f"[STREAM] Twilio Media Stream iniciado! StreamSid: {stream_sid} | CallSid: {call_sid}")
+            start_data = data.get("start", {})
+            stream_sid = start_data.get("streamSid")
+            call_sid = start_data.get("callSid")
+            custom_params = start_data.get("customParameters", {})
+            customer_name = custom_params.get("customer_name", "Ivan")
+            empresa = custom_params.get("empresa", "MyGain")
+            segmento = custom_params.get("segmento", "Investimentos")
+            numero = custom_params.get("numero", "+5547997804224")
+            print(f"[STREAM] Twilio Media Stream iniciado! StreamSid: {stream_sid} | Lead: {customer_name} ({empresa})")
             break
         elif event == "connected":
             print("[CONNECTED] Twilio conectada ao WebSocket...")
@@ -147,14 +153,21 @@ async def websocket_endpoint(websocket: WebSocket):
         )
     )
 
-    # Injeta o Prompt 24 Oficial da Mindflow
-    system_prompt = get_prompt_24(customer_name="Ivan", empresa="MindFlow", segmento="Tecnologia", numero="+5547997804224")
+    # Injeta o Prompt 24 Oficial com os dados dinâmicos do lead
+    system_prompt = get_prompt_24(customer_name=customer_name, empresa=empresa, segmento=segmento, numero=numero)
+    system_prompt += (
+        "\n\n[DIRETRIZ OBRIGATÓRIA DE TELEFONIA]\n"
+        "- Você está em uma LIGAÇÃO TELEFÔNICA REAL.\n"
+        "- Suas falas devem ter no MÁXIMO 1 ou 2 frases curtas por turno. NUNCA fale monólogos longos.\n"
+        "- Faça pausas e dê espaço para o lead responder a cada pergunta.\n"
+        "- Seja super natural, humano e direto ao ponto."
+    )
     ctx = LLMContext(messages=[{"role": "system", "content": system_prompt}])
     
-    # Estratégia de turnos calibrada para evitar interrupções falsas por respiração/ruído
+    # Estratégia de turnos ágil para permitir que o usuário interrompa naturalmente
     strategies = UserTurnStrategies(
-        start=[MinWordsUserTurnStartStrategy(min_words=2, use_interim=False)],
-        stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=0.6, wait_for_transcript=True)]
+        start=[MinWordsUserTurnStartStrategy(min_words=1, use_interim=True)],
+        stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=0.5, wait_for_transcript=True)]
     )
     user_params = LLMUserAggregatorParams(user_turn_strategies=strategies)
     pair = LLMContextAggregatorPair(ctx, user_params=user_params)
@@ -183,21 +196,22 @@ async def websocket_endpoint(websocket: WebSocket):
             punctuate=True
         )
     )
+    # LLM ultrarrápida para telefonia (150-200ms)
     llm = OpenAILLMService(
         api_key=os.getenv("OPENAI_API_KEY"),
         settings=OpenAILLMService.Settings(
-            model="gpt-4.1",
+            model="gpt-4o-mini",
             temperature=0.3
         )
     )
-    # Fish Audio TTS: NARRADOR DO TODO MUNDO ODEIA O CHRIS (custom_voice_066e4baeb7d31131cb8d842606)
+    # Fish Audio TTS com a nova voz e baixa latência
     tts = FishAudioTTSService(
         api_key=os.getenv("FISH_AUDIO_API_KEY"),
         sample_rate=16000,
         settings=FishAudioTTSService.Settings(
-            voice="4b215a58407c4def88e0892def6421b2",
+            voice="b501d6e84a974d8bb72c3e44f5873a31",
             temperature=0.40,
-            latency="normal"
+            latency="balanced"
         )
     )
 
@@ -216,17 +230,17 @@ async def websocket_endpoint(websocket: WebSocket):
     task = PipelineTask(pipeline)
     runner = PipelineRunner()
 
-    # Saudação inteligente: aguarda o "Alô?" do usuário ou inicia em 1.8s se houver silêncio
+    # Saudação inteligente e humana: aguarda o "Alô?" do usuário ou inicia de forma curta
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
-        print("[AI] Conexao atendida! Aguardando 'Alo?' ou disparando abertura em 1.8s...")
+        print(f"[AI] Atendida! Aguardando o lead falar ou saudando {customer_name} em 1.5s...")
         async def opening_fallback():
-            await asyncio.sleep(1.8)
+            await asyncio.sleep(1.5)
             if not user_spoke:
-                print("[AI] Ivan nao falou nos primeiros 1.8s. Caíque iniciando a fala...")
+                print(f"[AI] Saudando {customer_name} de forma curta e humana...")
                 ctx.add_message({
                     "role": "user",
-                    "content": "A ligação foi atendida e o lead está aguardando você falar. Diga a sua frase de abertura da Etapa 1 para o Ivan imediatamente."
+                    "content": f"A ligação foi atendida. Diga apenas uma saudação inicial curta e humana para o {customer_name} (ex: 'Alô, {customer_name}? Tudo bem? Aqui é o Caíque da MindFlow.') e pare para esperar ele responder."
                 })
                 await task.queue_frame(LLMContextFrame(ctx))
         asyncio.create_task(opening_fallback())
