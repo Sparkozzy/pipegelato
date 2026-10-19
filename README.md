@@ -15,7 +15,7 @@ Microsserviço independente de voz em tempo real da Mindflow.
 ## 🚀 Como fazer o Deploy no Easypanel
 
 1. No Easypanel, clique em **+ New Service** -> **App**.
-2. Selecione **GitHub** e aponte para este repositório (`Sparkozzy/mindflow-voice`).
+2. Selecione **GitHub** e aponte para este repositório (`Sparkozzy/pipegelato`).
 3. Em **Build**, o Easypanel detectará automaticamente o `Dockerfile`.
 4. Em **Port**, configure `8000`.
 5. Em **Domains**, adicione o domínio desejado (ex: `voice-github.bkpxmb.easypanel.host` ou `voice.mindflow.com.br`).
